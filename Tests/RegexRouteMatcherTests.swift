@@ -97,7 +97,7 @@ class RegexRouteMatcherTests: XCTestCase {
     }
 
     func testMatcherParsesPathParameters(matcher: RouteMatcherType.Type) {
-        let action = Action(responder: ok)
+        let action = Action(ok)
 
         let routes: [RouteType] = [
             TestRoute(
@@ -142,7 +142,7 @@ class RegexRouteMatcherTests: XCTestCase {
     }
 
     func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {
-        let action = Action(responder: ok)
+        let action = Action(ok)
 
         let paths: [String] = [
             // Objects
