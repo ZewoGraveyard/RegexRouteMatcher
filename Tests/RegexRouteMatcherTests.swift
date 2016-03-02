@@ -1,22 +1,40 @@
+// RegexRouteMatcherTests.swift
 //
-//  RegexRouteMatcherTests.swift
-//  RegexRouteMatcher
+// The MIT License (MIT)
 //
-//  Created by Dan Appel on 2/18/16.
+// Copyright (c) 2015 Zewo
 //
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 @testable import RegexRouteMatcher
 import XCTest
 
 class RegexRouteMatcherTests: XCTestCase {
+    let ok = Responder { request in
+        return Response(status: .OK)
+    }
     
     func testExample() {
         XCTAssert(true)
     }
-    
-    
-    func testRegexRouteMatcherWithRouter() {
+
+    func testRegexRouteMatcherMatchesRoutes() {
         testMatcherMatchesRoutes(RegexRouteMatcher.self)
     }
     
@@ -24,37 +42,33 @@ class RegexRouteMatcherTests: XCTestCase {
         testMatcherWithTrailingSlashes(RegexRouteMatcher.self)
     }
     
-    func testRegexRouteMatcherMatchesMethods() {
-        testMatcherMatchesMethods(RegexRouteMatcher.self)
-    }
-    
     func testRegexRouteMatcherParsesPathParameters() {
         testMatcherParsesPathParameters(RegexRouteMatcher.self)
     }
-    
+
+    func testPerformanceOfRegexRouteMatcher() {
+        measureBlock {
+            self.testPerformanceOfMatcher(RegexRouteMatcher.self)
+        }
+    }
     
     func testMatcherMatchesRoutes(matcher: RouteMatcherType.Type) {
-        
-        let responder = Responder { request in
-            return Response(status: .OK)
-        }
-        
-        let routes = [
-            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: responder),
-            Route(methods: [.GET], path: "/hello/dan", middleware: [], responder: responder),
-            Route(methods: [.GET], path: "/api/:version", middleware: [], responder: responder),
-            Route(methods: [.GET], path: "/servers/json", middleware: [], responder: responder),
-            Route(methods: [.GET], path: "/servers/:host/logs", middleware: [], responder: responder)
+        let routes: [RouteType] = [
+            TestRoute(path: "/hello/world"),
+            TestRoute(path: "/hello/dan"),
+            TestRoute(path: "/api/:version"),
+            TestRoute(path: "/servers/json"),
+            TestRoute(path: "/servers/:host/logs")
         ]
-        
+
         let matcher = matcher.init(routes: routes)
-        
+
         func route(path: String, shouldMatch: Bool) -> Bool {
             let request = try! Request(method: .GET, uri: path)
             let matched = matcher.match(request)
-            if shouldMatch { return matched != nil } else { return matched == nil }
+            return shouldMatch ?  matched != nil : matched == nil
         }
-        
+
         XCTAssert(route("/hello/world", shouldMatch: true))
         XCTAssert(route("/hello/dan", shouldMatch: true))
         XCTAssert(route("/hello/world/dan", shouldMatch: false))
@@ -67,71 +81,128 @@ class RegexRouteMatcherTests: XCTestCase {
         XCTAssert(route("/servers/notjson/logs", shouldMatch: true))
         XCTAssert(route("/servers/json/logs", shouldMatch: true))
     }
-    
+
     func testMatcherWithTrailingSlashes(matcher: RouteMatcherType.Type) {
-        let responder = Responder { request in
-            return Response(status: .OK)
-        }
-        
-        let routes = [
-            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: responder)
+        let routes: [RouteType] = [
+            TestRoute(path: "/hello/world")
         ]
-        
+
         let matcher = matcher.init(routes: routes)
-        
+
         let request1 = try! Request(method: .GET, uri: "/hello/world")
         let request2 = try! Request(method: .GET, uri: "/hello/world/")
-        
+
         XCTAssert(matcher.match(request1) != nil)
         XCTAssert(matcher.match(request2) != nil)
     }
-    
-    func testMatcherMatchesMethods(matcher: RouteMatcherType.Type) {
-        
-        let routes = [
-            Route(methods: [.GET], path: "/hello/world", middleware: [], responder: Responder { _ in return Response(body: "get request") }),
-            Route(methods: [.POST], path: "/hello/world", middleware: [], responder: Responder { _ in return Response(body: "post request") }),
-            Route(methods: [.POST], path: "/hello/world123", middleware: [], responder: Responder { _ in return Response(body: "post request 2") })
-        ]
-        
-        let matcher = matcher.init(routes: routes)
-        
-        let getRequest1 = try! Request(method: .GET, uri: "/hello/world")
-        let postRequest1 = try! Request(method: .POST, uri: "/hello/world")
-        
-        let getRequest2 = try! Request(method: .GET, uri: "/hello/world123")
-        let postRequest2 = try! Request(method: .POST, uri: "/hello/world123")
-        
-        XCTAssert(try matcher.match(getRequest1)!.respond(getRequest1).bodyString == "get request")
-        XCTAssert(try matcher.match(postRequest1)!.respond(postRequest1).bodyString == "post request")
-        
-        XCTAssert(matcher.match(getRequest2) == nil)
-        XCTAssert(matcher.match(postRequest2) != nil)
-    }
-    
+
     func testMatcherParsesPathParameters(matcher: RouteMatcherType.Type) {
-        
-        let routes = [
-            Route(methods: [.GET], path: "/hello/world", middleware: [], responder:  Responder {_ in return Response(body: "hello world - not!") }),
-            Route(methods: [.GET], path: "/hello/:location", middleware: [], responder: Responder { return Response(body: "hello \($0.pathParameters["location"]!)") }),
-            Route(methods: [.POST], path: "/hello/:location", middleware: [], responder: Responder { return Response(body: "hello \($0.pathParameters["location"]!)") }),
-            Route(methods: [.GET], path: "/:greeting/:location", middleware: [], responder: Responder { return Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)") })
+        let action = Action(responder: ok)
+
+        let routes: [RouteType] = [
+            TestRoute(
+                path: "/hello/world",
+                actions: [
+                    .GET: Action { _ in
+                        Response(body: "hello world - not!")
+                    }
+                ]
+            ),
+            TestRoute(
+                path: "/hello/:location",
+                actions: [
+                    .GET: Action {
+                        Response(body: "hello \($0.pathParameters["location"]!)")
+                    }
+                ]
+            ),
+            TestRoute(
+                path: "/:greeting/:location",
+                actions: [
+                    .GET: Action {
+                        Response(body: "\($0.pathParameters["greeting"]!) \($0.pathParameters["location"]!)")
+                    }
+                ]
+            )
         ]
-        
+
         let matcher = matcher.init(routes: routes)
-        
-        func body(request: Request) -> String {
-            return try! matcher.match(request)!.respond(request).bodyString!
+
+        func body(request: Request) -> String? {
+            return try! matcher.match(request)?.respond(request).bodyString
         }
-        
+
         let helloWorld = try! Request(method: .GET, uri: "/hello/world")
         let helloAmerica = try! Request(method: .GET, uri: "/hello/america")
-        let postHelloWorld = try! Request(method: .POST, uri: "/hello/world")
         let heyAustralia = try! Request(method: .GET, uri: "/hey/australia")
-        
+
         XCTAssert(body(helloWorld) == "hello world - not!")
         XCTAssert(body(helloAmerica) == "hello america")
-        XCTAssert(body(postHelloWorld) == "hello world")
         XCTAssert(body(heyAustralia) == "hey australia")
+    }
+
+    func testPerformanceOfMatcher(matcher: RouteMatcherType.Type) {
+        let action = Action(responder: ok)
+
+        let paths: [String] = [
+            // Objects
+            "/1/classes/:className",
+            "/1/classes/:className/:objectId",
+
+            // Users
+            "/1/users",
+            "/1/login",
+            "/1/users/:objectId",
+            "/1/requestPasswordReset",
+
+            // Roles
+            "/1/roles",
+            "/1/roles/:objectId",
+
+            // Files
+            "/1/files/:fileName",
+
+            // Analytics
+            "/1/events/:eventName",
+
+            // Push Notifications
+            "/1/push",
+
+            // Installations
+            "/1/installations",
+            "/1/installations/:objectId",
+
+            // Cloud Functions
+            "/1/functions",
+            ]
+
+        let routes: [RouteType] = paths.map {
+            TestRoute(
+                path: $0,
+                actions: [.GET: action]
+            )
+        }
+
+        let requests = paths.map {
+            Request(method: .GET, uri: URI(path: $0))
+        }
+        
+        let matcher = matcher.init(routes: routes)
+        
+        for _ in 0...50 {
+            for request in requests {
+                matcher.match(request)
+            }
+        }
+    }
+}
+
+struct TestRoute: RouteType {
+    let path: String
+    let actions: [HTTP.Method: Action]
+
+    init(path: String, actions: [HTTP.Method: Action] = [:]) {
+        self.path = path
+        self.actions = actions
     }
 }

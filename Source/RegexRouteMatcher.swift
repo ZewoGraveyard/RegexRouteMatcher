@@ -26,65 +26,80 @@
 @_exported import POSIXRegex
 
 public struct RegexRouteMatcher: RouteMatcherType {
-    public let routes: [Route]
-    public let regexRoutes: [(Route, RegexRoute)]
+    public let routes: [RouteType]
 
-    public init(routes: [Route]) {
-        self.regexRoutes = routes.map {
-            let regexRoute = RegexRoute(route: $0)
-            let route = Route(
-                methods: regexRoute.route.methods,
-                path: regexRoute.route.path,
-                middleware: regexRoute.route.middleware,
-                responder: regexRoute
-            )
-            return (route, regexRoute)
-        }
-        self.routes = regexRoutes.map({$0.0})
+    public init(routes: [RouteType]) {
+        self.routes = routes.map(Route.init)
     }
 
-    public func match(request: Request) -> Route? {
-        for (route, regexRoute) in regexRoutes where regexRoute.matches(request) {
-            return route
+    public func match(request: Request) -> RouteType? {
+        for route in routes  {
+            let regexRoute = route as! Route
+            if regexRoute.matches(request) {
+                return route
+            }
         }
         return nil
     }
 }
 
-public struct RegexRoute: ResponderType {
-    public let route: Route
-    private let parameterKeys: [String]
-    private let regularExpression: Regex
+struct Route: RouteType {
+    let path: String
+    let actions: [Method: Action]
+    let fallback: Action
 
-    public init(route: Route) {
-        self.route = route
+    private let regex: Regex
 
+    init(route: RouteType) {
         let parameterRegularExpression = try! Regex(pattern: ":([[:alnum:]]+)")
         let pattern = parameterRegularExpression.replace(route.path, withTemplate: "([[:alnum:]_-]+)")
 
-        self.parameterKeys = parameterRegularExpression.groups(route.path)
-        self.regularExpression = try! Regex(pattern: "^" + pattern + "$")
+        let parameterKeys = parameterRegularExpression.groups(route.path)
+        let regex = try! Regex(pattern: "^" + pattern + "$")
+
+        self.path = route.path
+        self.actions = route.actions.mapValues { action in
+            Action(
+                middleware: action.middleware,
+                responder: Responder { request in
+                    var request = request
+
+                    guard let path = request.path else {
+                        return Response(status: .BadRequest)
+                    }
+
+                    let values = regex.groups(path)
+                    request.pathParameters = [:]
+
+                    for (index, key) in parameterKeys.enumerate() {
+                        request.pathParameters[key] = values[index]
+                    }
+
+                    return try action.responder.respond(request)
+                }
+            )
+        }
+        self.fallback = route.fallback
+        self.regex = regex
+    }
+    
+    func matches(request: Request) -> Bool {
+        guard let path = request.uri.path else {
+            return false
+        }
+        return regex.matches(path)
+    }
+}
+
+extension Dictionary {
+    init<S: SequenceType where S.Generator.Element == Element>(_ sequence: S) {
+        self.init()
+        for (key, value) in sequence {
+            self[key] = value
+        }
     }
 
-    public func matches(request: Request) -> Bool {
-        return regularExpression.matches(request.uri.path!) && route.methods.contains(request.method)
-    }
-
-    public func respond(request: Request) throws -> Response {
-        var request = request
-
-        guard let path = request.path else {
-            return Response(status: .BadRequest)
-        }
-
-        let values = regularExpression.groups(path)
-
-        request.pathParameters = [:]
-
-        for (index, key) in parameterKeys.enumerate() {
-            request.pathParameters[key] = values[index]
-        }
-
-        return try route.responder.respond(request)
+    func mapValues<T>(transform: Value -> T) -> Dictionary<Key, T> {
+        return Dictionary<Key, T>(zip(keys, values.map(transform)))
     }
 }
