@@ -27,67 +27,70 @@
 
 public struct RegexRouteMatcher: RouteMatcherType {
     public let routes: [RouteType]
+    let regexRoutes: [RegexRoute]
 
     public init(routes: [RouteType]) {
-        self.routes = routes.map(Route.init)
+        self.routes = routes
+        self.regexRoutes = routes.map(RegexRoute.init)
     }
 
     public func match(request: Request) -> RouteType? {
-        for route in routes  {
-            let regexRoute = route as! Route
+        for regexRoute in regexRoutes  {
             if regexRoute.matches(request) {
-                return route
+                let parameters = regexRoute.parameters(request)
+                let parametersMiddleware = PathParametersMiddleware(pathParameters: parameters)
+
+                return Route(
+                    path: regexRoute.route.path,
+                    actions: regexRoute.route.actions.mapValues { action in
+                        Action(
+                            middleware: [parametersMiddleware] + action.middleware,
+                            responder: action.responder
+                        )
+                    },
+                    fallback: regexRoute.route.fallback
+                )
             }
         }
         return nil
     }
 }
 
-struct Route: RouteType {
-    let path: String
-    let actions: [Method: Action]
-    let fallback: Action
-
-    private let regex: Regex
+struct RegexRoute {
+    let regex: Regex
+    let parameterKeys: [String]
+    let route: RouteType
 
     init(route: RouteType) {
         let parameterRegularExpression = try! Regex(pattern: ":([[:alnum:]]+)")
         let pattern = parameterRegularExpression.replace(route.path, withTemplate: "([[:alnum:]_-]+)")
 
-        let parameterKeys = parameterRegularExpression.groups(route.path)
-        let regex = try! Regex(pattern: "^" + pattern + "$")
-
-        self.path = route.path
-        self.actions = route.actions.mapValues { action in
-            Action(
-                middleware: action.middleware,
-                responder: Responder { request in
-                    var request = request
-
-                    guard let path = request.path else {
-                        return Response(status: .BadRequest)
-                    }
-
-                    let values = regex.groups(path)
-                    request.pathParameters = [:]
-
-                    for (index, key) in parameterKeys.enumerate() {
-                        request.pathParameters[key] = values[index]
-                    }
-
-                    return try action.responder.respond(request)
-                }
-            )
-        }
-        self.fallback = route.fallback
-        self.regex = regex
+        self.regex = try! Regex(pattern: "^" + pattern + "$")
+        self.parameterKeys = parameterRegularExpression.groups(route.path)
+        self.route = route
     }
     
     func matches(request: Request) -> Bool {
-        guard let path = request.uri.path else {
+        guard let path = request.path else {
             return false
         }
         return regex.matches(path)
+    }
+
+    func parameters(request: Request) -> [String: String] {
+        guard let path = request.path else {
+            return [:]
+        }
+
+        var parameters: [String: String] = [:]
+
+        let values = regex.groups(path)
+
+        for (index, key) in parameterKeys.enumerate() {
+            parameters[key] = values[index]
+        }
+
+        return parameters
     }
 }
 
