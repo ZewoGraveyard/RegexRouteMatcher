@@ -86,7 +86,7 @@ struct RegexRoute {
 
         let values = regex.groups(path)
 
-        for (index, key) in parameterKeys.enumerate() {
+        for (index, key) in parameterKeys.enumerated() {
             parameters[key] = values[index]
         }
 
