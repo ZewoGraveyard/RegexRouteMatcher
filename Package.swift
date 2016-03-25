@@ -5,5 +5,6 @@ let package = Package(
     dependencies: [
         .Package(url: "https://github.com/Zewo/POSIXRegex.git", majorVersion: 0, minor: 4),
         .Package(url: "https://github.com/Zewo/HTTP.git", majorVersion: 0, minor: 4),
+        .Package(url: "https://github.com/Zewo/PathParameterMiddleware.git", majorVersion: 0, minor: 4),
     ]
 )

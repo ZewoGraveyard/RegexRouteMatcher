@@ -24,30 +24,26 @@
 
 @_exported import HTTP
 @_exported import POSIXRegex
+@_exported import PathParameterMiddleware
 
-public struct RegexRouteMatcher: RouteMatcherType {
-    public let routes: [RouteType]
+public struct RegexRouteMatcher: RouteMatcher {
+    public let routes: [Route]
     let regexRoutes: [RegexRoute]
 
-    public init(routes: [RouteType]) {
+    public init(routes: [Route]) {
         self.routes = routes
         self.regexRoutes = routes.map(RegexRoute.init)
     }
 
-    public func match(request: Request) -> RouteType? {
+    public func match(request: Request) -> Route? {
         for regexRoute in regexRoutes  {
             if regexRoute.matches(request) {
                 let parameters = regexRoute.parameters(request)
-                let parametersMiddleware = PathParametersMiddleware(pathParameters: parameters)
+                let parametersMiddleware = PathParameterMiddleware(parameters)
 
-                return Route(
+                return BasicRoute(
                     path: regexRoute.route.path,
-                    actions: regexRoute.route.actions.mapValues { action in
-                        Action(
-                            middleware: [parametersMiddleware] + action.middleware,
-                            responder: action.responder
-                        )
-                    },
+                    actions: regexRoute.route.actions.mapValues({parametersMiddleware.intercept($0)}),
                     fallback: regexRoute.route.fallback
                 )
             }
@@ -59,9 +55,9 @@ public struct RegexRouteMatcher: RouteMatcherType {
 struct RegexRoute {
     let regex: Regex
     let parameterKeys: [String]
-    let route: RouteType
+    let route: Route
 
-    init(route: RouteType) {
+    init(route: Route) {
         let parameterRegularExpression = try! Regex(pattern: ":([[:alnum:]]+)")
         let pattern = parameterRegularExpression.replace(route.path, withTemplate: "([[:alnum:]_-]+)")
 
@@ -69,7 +65,7 @@ struct RegexRoute {
         self.parameterKeys = parameterRegularExpression.groups(route.path)
         self.route = route
     }
-    
+
     func matches(request: Request) -> Bool {
         guard let path = request.path else {
             return false
