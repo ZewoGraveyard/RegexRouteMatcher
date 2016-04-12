@@ -43,7 +43,7 @@ public struct RegexRouteMatcher: RouteMatcher {
 
                 return BasicRoute(
                     path: regexRoute.route.path,
-                    actions: regexRoute.route.actions.mapValues({parametersMiddleware.intercept($0)}),
+                    actions: regexRoute.route.actions.mapValues({parametersMiddleware.chain(to: $0)}),
                     fallback: regexRoute.route.fallback
                 )
             }
