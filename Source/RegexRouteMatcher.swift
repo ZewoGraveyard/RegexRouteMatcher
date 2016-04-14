@@ -66,14 +66,14 @@ struct RegexRoute {
         self.route = route
     }
 
-    func matches(request: Request) -> Bool {
+    func matches(_ request: Request) -> Bool {
         guard let path = request.path else {
             return false
         }
         return regex.matches(path)
     }
 
-    func parameters(request: Request) -> [String: String] {
+    func parameters(_ request: Request) -> [String: String] {
         guard let path = request.path else {
             return [:]
         }
@@ -91,7 +91,7 @@ struct RegexRoute {
 }
 
 extension Dictionary {
-    func mapValues<T>(transform: Value -> T) -> [Key: T] {
+    func mapValues<T>(_ transform: Value -> T) -> [Key: T] {
         var dictionary: [Key: T] = [:]
 
         for (key, value) in self {
