@@ -35,7 +35,7 @@ public struct RegexRouteMatcher: RouteMatcher {
         self.regexRoutes = routes.map(RegexRoute.init)
     }
 
-    public func match(request: Request) -> Route? {
+    public func match(_ request: Request) -> Route? {
         for regexRoute in regexRoutes  {
             if regexRoute.matches(request) {
                 let parameters = regexRoute.parameters(request)
