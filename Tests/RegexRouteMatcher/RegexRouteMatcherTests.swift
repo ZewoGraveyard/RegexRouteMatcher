@@ -1,27 +1,3 @@
-// TrieRouteMatcherTests.swift
-//
-// The MIT License (MIT)
-//
-// Copyright (c) 2015 Zewo
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-
 @testable import RegexRouteMatcher
 import XCTest
 
@@ -34,18 +10,24 @@ class RegexRouteMatcherTests: XCTestCase {
         testMatcherMatchesRoutes(RegexRouteMatcher.self)
     }
 
-//    func testRegexRouteMatcherWithTrailingSlashes() {
-//        testMatcherWithTrailingSlashes(RegexRouteMatcher.self)
-//    }
+    func testRegexRouteMatcherWithTrailingSlashes() {
+        testMatcherWithTrailingSlashes(RegexRouteMatcher.self)
+    }
 
     func testRegexRouteMatcherParsesPathParameters() {
         testMatcherParsesPathParameters(RegexRouteMatcher.self)
     }
 
+    func testRegexRouteMatcherMatchesWildstars() {
+        testMatcherMatchesWildstars(RegexRouteMatcher.self)
+    }
+
     func testPerformanceOfRegexRouteMatcher() {
-        measurePerformance { 
-            self.testPerformanceOfMatcher(RegexRouteMatcher.self)
-        }
+        #if os(OSX)
+            measure {
+                self.testPerformanceOfMatcher(RegexRouteMatcher.self)
+            }
+        #endif
     }
 
     func testMatcherMatchesRoutes(_ matcher: RouteMatcher.Type) {
@@ -59,23 +41,23 @@ class RegexRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func route(path: String, shouldMatch: Bool) -> Bool {
+        func route(_ path: String, shouldMatch: Bool) -> Bool {
             let request = try! Request(method: .get, uri: path)
             let matched = matcher.match(request)
             return shouldMatch ?  matched != nil : matched == nil
         }
 
-        XCTAssert(route(path: "/hello/world", shouldMatch: true))
-        XCTAssert(route(path: "/hello/dan", shouldMatch: true))
-        XCTAssert(route(path: "/hello/world/dan", shouldMatch: false))
-        XCTAssert(route(path: "/api/v1", shouldMatch: true))
-        XCTAssert(route(path: "/api/v2", shouldMatch: true))
-        XCTAssert(route(path: "/api/v1/v1", shouldMatch: false))
-        XCTAssert(route(path: "/api/api", shouldMatch: true))
-        XCTAssert(route(path: "/servers/json", shouldMatch: true))
-        XCTAssert(route(path: "/servers/notjson", shouldMatch: false))
-        XCTAssert(route(path: "/servers/notjson/logs", shouldMatch: true))
-        XCTAssert(route(path: "/servers/json/logs", shouldMatch: true))
+        XCTAssert(route("/hello/world", shouldMatch: true))
+        XCTAssert(route("/hello/dan", shouldMatch: true))
+        XCTAssert(route("/hello/world/dan", shouldMatch: false))
+        XCTAssert(route("/api/v1", shouldMatch: true))
+        XCTAssert(route("/api/v2", shouldMatch: true))
+        XCTAssert(route("/api/v1/v1", shouldMatch: false))
+        XCTAssert(route("/api/api", shouldMatch: true))
+        XCTAssert(route("/servers/json", shouldMatch: true))
+        XCTAssert(route("/servers/notjson", shouldMatch: false))
+        XCTAssert(route("/servers/notjson/logs", shouldMatch: true))
+        XCTAssert(route("/servers/json/logs", shouldMatch: true))
     }
 
     func testMatcherWithTrailingSlashes(_ matcher: RouteMatcher.Type) {
@@ -93,7 +75,6 @@ class RegexRouteMatcherTests: XCTestCase {
     }
 
     func testMatcherParsesPathParameters(_ matcher: RouteMatcher.Type) {
-        let action = ok
 
         let routes: [Route] = [
             TestRoute(
@@ -124,18 +105,23 @@ class RegexRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func body(request: Request) -> String? {
-            var response = try! matcher.match(request)?.respond(to: request)
-            return try! String(data: response!.body.becomeBuffer())
+        func body(_ request: Request, _ expectedResponse: String) -> Bool {
+            guard var body = try? matcher.match(request)?.respond(to: request).body else {
+                return false
+            }
+            guard let buffer = try? body?.becomeBuffer() else {
+                return false
+            }
+            return buffer == expectedResponse.data
         }
 
         let helloWorld = try! Request(method: .get, uri: "/hello/world")
         let helloAmerica = try! Request(method: .get, uri: "/hello/america")
         let heyAustralia = try! Request(method: .get, uri: "/hey/australia")
 
-        XCTAssert(body(request: helloWorld) == "hello world - not!")
-        XCTAssert(body(request: helloAmerica) == "hello america")
-        XCTAssert(body(request: heyAustralia) == "hey australia")
+        XCTAssert(body(helloWorld, "hello world - not!"))
+        XCTAssert(body(helloAmerica, "hello america"))
+        XCTAssert(body(heyAustralia, "hey australia"))
     }
 
     func testMatcherMatchesWildstars(_ matcher: RouteMatcher.Type) {
@@ -152,22 +138,25 @@ class RegexRouteMatcherTests: XCTestCase {
 
         let matcher = matcher.init(routes: routes)
 
-        func route(path: String, expectedResponse: String) -> Bool {
+        func route(_ path: String, expectedResponse: String) -> Bool {
             let request = try! Request(method: .get, uri: path)
             let matched = matcher.match(request)
 
-            var response = try! matched!.respond(to: request)
-            return try! String(data: response.body.becomeBuffer()) == expectedResponse
+            guard var body = try? matched?.respond(to: request).body else {
+                return false
+            }
+            guard let buffer = try? body?.becomeBuffer() else {
+                return false
+            }
+            return buffer == expectedResponse.data
         }
 
-        XCTAssert(route(path: "/a/s/d/f", expectedResponse: "wild"))
-        XCTAssert(route(path: "/hello/asdf", expectedResponse: "hello wild"))
-        XCTAssert(route(path: "/hello/dan", expectedResponse: "hello dan"))
+        XCTAssert(route("/a/s/d/f", expectedResponse: "wild"))
+        XCTAssert(route("/hello/asdf", expectedResponse: "hello wild"))
+        XCTAssert(route("/hello/dan", expectedResponse: "hello dan"))
     }
 
     func testPerformanceOfMatcher(_ matcher: RouteMatcher.Type) {
-        let action = ok
-
         let routePairs: [(HTTP.Method, String)] = [
             // Objects
             (.post, "/1/classes/:className"),
@@ -259,7 +248,7 @@ class RegexRouteMatcherTests: XCTestCase {
         let routes: [Route] = routePairs.map {
             TestRoute(
                 path: $0.1,
-                actions: [$0.0: action]
+                actions: [$0.0: ok]
             )
         }
 
@@ -277,32 +266,20 @@ class RegexRouteMatcherTests: XCTestCase {
     }
 }
 
-extension RegexRouteMatcherTests {
-    static var allTests: [(String, RegexRouteMatcherTests -> () throws -> Void)] {
-        return [
-                   ("testRegexRouteMatcherMatchesRoutes", testRegexRouteMatcherMatchesRoutes),
-                   ("testRegexRouteMatcherParsesPathParameters", testRegexRouteMatcherParsesPathParameters),
-                   ("testPerformanceOfRegexRouteMatcher", testPerformanceOfRegexRouteMatcher)
-        ]
-    }
-}
-
 struct TestRoute: Route {
     let path: String
     let actions: [HTTP.Method: Responder]
-    
+
     init(path: String, actions: [HTTP.Method: Responder] = [:]) {
         self.path = path
         self.actions = actions
     }
 }
 
-func measurePerformance(_ block: () -> Void) {
-    let start = clock()
-    for _ in 0..<10 {
-        block()
+extension RegexRouteMatcherTests {
+    static var allTests: [(String, RegexRouteMatcherTests -> () throws -> Void)] {
+        return [
+           ("testRegexRouteMatcherMatchesRoutes", testRegexRouteMatcherMatchesRoutes),
+        ]
     }
-    let finish = clock()
-    let time = Double((finish - start)) / Double(CLOCKS_PER_SEC) / 10.0
-    print("Average time: \(time)")
 }
