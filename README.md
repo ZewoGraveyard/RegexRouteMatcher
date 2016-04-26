@@ -6,6 +6,7 @@
 [![License][mit-badge]][mit-url]
 [![Slack][slack-badge]][slack-url]
 [![Travis][travis-badge]][travis-url]
+[![Codebeat][codebeat-badge]][codebeat-url]
 
 ## Installation
 
@@ -13,9 +14,9 @@
 import PackageDescription
 
 let package = Package(
-dependencies: [
-.Package(url: "https://github.com/Zewo/RegexRouteMatcher.git", majorVersion: 0, minor: 5)
-]
+    dependencies: [
+        .Package(url: "https://github.com/Zewo/RegexRouteMatcher.git", majorVersion: 0, minor: 5),
+    ]
 )
 ```
 
@@ -46,3 +47,5 @@ This project is released under the MIT license. See [LICENSE](LICENSE) for detai
 [slack-url]: http://slack.zewo.io
 [travis-badge]: https://travis-ci.org/Zewo/RegexRouteMatcher.svg?branch=master
 [travis-url]: https://travis-ci.org/Zewo/RegexRouteMatcher
+[codebeat-badge]: https://codebeat.co/badges/aee9b934-815a-41d7-a918-90856834d2bc
+[codebeat-url]: https://codebeat.co/projects/github-com-zewo-regexroutematcher
