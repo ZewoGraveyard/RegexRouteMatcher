@@ -91,7 +91,7 @@ struct RegexRoute {
 }
 
 extension Dictionary {
-    func mapValues<T>(_ transform: Value -> T) -> [Key: T] {
+    func mapValues<T>(_ transform: (Value) -> T) -> [Key: T] {
         var dictionary: [Key: T] = [:]
 
         for (key, value) in self {
