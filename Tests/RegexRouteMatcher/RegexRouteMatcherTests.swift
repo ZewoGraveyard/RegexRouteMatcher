@@ -277,7 +277,7 @@ struct TestRoute: Route {
 }
 
 extension RegexRouteMatcherTests {
-    static var allTests: [(String, RegexRouteMatcherTests -> () throws -> Void)] {
+    static var allTests: [(String, (RegexRouteMatcherTests) -> () throws -> Void)] {
         return [
            ("testRegexRouteMatcherMatchesRoutes", testRegexRouteMatcherMatchesRoutes),
         ]
